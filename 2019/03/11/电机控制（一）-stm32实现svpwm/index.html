@@ -21,7 +21,7 @@
 <meta property="og:image" content="http://linyicheng.club/2019/03/11/电机控制（一）-stm32实现svpwm/assets/img/PWM1VSPWM2.png">
 <meta property="og:image" content="http://linyicheng.club/2019/03/11/电机控制（一）-stm32实现svpwm/assets/img/sector.png">
 <meta property="og:image" content="http://linyicheng.club/2019/03/11/电机控制（一）-stm32实现svpwm/assets/img/time.png">
-<meta property="og:updated_time" content="2019-03-11T15:38:13.394Z">
+<meta property="og:updated_time" content="2019-03-11T15:56:45.679Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="电机控制（一） stm32实现svpwm">
 <meta name="twitter:description" content="一、简介FOC电机控制算法相比于方波控制能提高电机的运转性能，但是目前的困境在于大量的博客论坛都是理论上的泛泛而谈，只是谈到一些基本的FOC的原理没有落地到具体实现。另一方面，st公司开源了一套FOC的代码库，奈何为了推行F3系列芯片大部分都是基于stm32f3实现的，同时包含了大量的宏定义和GUI内容，把各种模式和配置都杂糅在一起，在我看来是不利于大家理解的并且从2.0的库到5.0的库封装性越好">
@@ -190,7 +190,7 @@
 <h3 id="二、svpwm简介"><a href="#二、svpwm简介" class="headerlink" title="二、svpwm简介"></a>二、svpwm简介</h3><p>svpwm是foc的正弦波调制的一种方式具体介绍很长，不是本文重点。请移步下面博客</p>
 <p><a href="https://blog.csdn.net/qlexcel/article/details/74787619" target="_blank" rel="noopener">https://blog.csdn.net/qlexcel/article/details/74787619</a></p>
 <p>我们只需要知道svpwm波的波形如下图，而最重要的任务就是如何用stm32实现</p>
-<p><img src="assets\img\FOC-svpwm.jpg" alt="FOC-svpwm.jpg"></p>
+<p> <img src="assets\img\FOC-svpwm.jpg" alt></p>
 <h3 id="三、stm32-定时器配置"><a href="#三、stm32-定时器配置" class="headerlink" title="三、stm32 定时器配置"></a>三、stm32 定时器配置</h3><p>由于我采用的是三电阻采样的方式，在电机库的stm32x_svpwm_3shunt.c 文件中实现了该模式的具体配置。初始化定时器的代码如下</p>
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">TIM_TimeBaseStructInit(&amp;TIM1_TimeBaseStructure);</span><br><span class="line">/* Time Base configuration */</span><br><span class="line">TIM1_TimeBaseStructure.TIM_Prescaler = 0x0;</span><br><span class="line">TIM1_TimeBaseStructure.TIM_CounterMode =      TIM_CounterMode_CenterAligned1;</span><br><span class="line">TIM1_TimeBaseStructure.TIM_Period = PWM_PERIOD;</span><br><span class="line">TIM1_TimeBaseStructure.TIM_ClockDivision = TIM_CKD_DIV2;</span><br><span class="line">// Initial condition is REP=0 to set the UPDATE only on the underflow</span><br><span class="line">TIM1_TimeBaseStructure.TIM_RepetitionCounter = REP_RATE;</span><br><span class="line">TIM_TimeBaseInit(TIM1, &amp;TIM1_TimeBaseStructure);</span><br></pre></td></tr></table></figure>
 <p>配置方面需要对stm32的定时器有初步的了解,下面对每个参数进行介绍</p>
