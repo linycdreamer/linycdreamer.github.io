@@ -1,0 +1,2 @@
+# linyicheng
+Blog of linyicheng
