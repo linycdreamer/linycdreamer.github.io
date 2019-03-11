@@ -6,11 +6,11 @@
   <meta name="renderer" content="webkit">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <link rel="dns-prefetch" href="http://linyicheng.club">
-  <title>木独的博客</title>
+  <title>Archives | 木独的博客</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <meta property="og:type" content="website">
 <meta property="og:title" content="木独的博客">
-<meta property="og:url" content="http://linyicheng.club/index.html">
+<meta property="og:url" content="http://linyicheng.club/archives/page/2/index.html">
 <meta property="og:site_name" content="木独的博客">
 <meta property="og:locale" content="default">
 <meta name="twitter:card" content="summary">
@@ -156,349 +156,50 @@
           <div id="js-content" class="content-ll">
             
   
-    <article id="post-电机控制（一）-stm32实现svpwm" class="article article-type-post  article-index" itemscope itemprop="blogPost">
-  <div class="article-inner">
-    
-      <header class="article-header">
-        
   
-    <h1 itemprop="name">
-      <a class="article-title" href="/2019/03/11/电机控制（一）-stm32实现svpwm/">电机控制（一） stm32实现svpwm</a>
-    </h1>
-  
-
-        
-        <a href="/2019/03/11/电机控制（一）-stm32实现svpwm/" class="archive-article-date">
-  	<time datetime="2019-03-11T10:01:06.000Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2019-03-11</time>
-</a>
-        
-      </header>
     
-    <div class="article-entry" itemprop="articleBody">
-      
-        <h3 id="一、简介"><a href="#一、简介" class="headerlink" title="一、简介"></a>一、简介</h3><p>FOC电机控制算法相比于方波控制能提高电机的运转性能，但是目前的困境在于大量的博客论坛都是理论上的泛泛而谈，只是谈到一些基本的FOC的原理没有落地到具体实现。另一方面，st公司开源了一套FOC的代码库，奈何为了推行F3系列芯片大部分都是基于stm32f3实现的，同时包含了大量的宏定义和GUI内容，把各种模式和配置都杂糅在一起，在我看来是不利于大家理解的并且从2.0的库到5.0的库封装性越好，越难以深入底层了解算法的本质。</p>
-<p>所以我依托于st开源的2.0的库，深入的讲解如何用stm32f103来实现一整套无感FOC算法。</p>
-<h3 id="二、svpwm简介"><a href="#二、svpwm简介" class="headerlink" title="二、svpwm简介"></a>二、svpwm简介</h3><p>svpwm是foc的正弦波调制的一种方式具体介绍很长，不是本文重点。请移步下面博客</p>
-<p><a href="https://blog.csdn.net/qlexcel/article/details/74787619" target="_blank" rel="noopener">https://blog.csdn.net/qlexcel/article/details/74787619</a></p>
-<p>我们只需要知道svpwm波的波形如下图，而最重要的任务就是如何用stm32实现</p>
-<p><img src="assets\img\FOC-svpwm.jpg" alt="FOC-svpwm.jpg"></p>
-<h3 id="三、stm32-定时器配置"><a href="#三、stm32-定时器配置" class="headerlink" title="三、stm32 定时器配置"></a>三、stm32 定时器配置</h3><p>由于我采用的是三电阻采样的方式，在电机库的stm32x_svpwm_3shunt.c 文件中实现了该模式的具体配置。初始化定时器的代码如下</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">TIM_TimeBaseStructInit(&amp;TIM1_TimeBaseStructure);</span><br><span class="line">/* Time Base configuration */</span><br><span class="line">TIM1_TimeBaseStructure.TIM_Prescaler = 0x0;</span><br><span class="line">TIM1_TimeBaseStructure.TIM_CounterMode =      TIM_CounterMode_CenterAligned1;</span><br><span class="line">TIM1_TimeBaseStructure.TIM_Period = PWM_PERIOD;</span><br><span class="line">TIM1_TimeBaseStructure.TIM_ClockDivision = TIM_CKD_DIV2;</span><br><span class="line">// Initial condition is REP=0 to set the UPDATE only on the underflow</span><br><span class="line">TIM1_TimeBaseStructure.TIM_RepetitionCounter = REP_RATE;</span><br><span class="line">TIM_TimeBaseInit(TIM1, &amp;TIM1_TimeBaseStructure);</span><br></pre></td></tr></table></figure>
-<p>配置方面需要对stm32的定时器有初步的了解,下面对每个参数进行介绍</p>
-<p><strong>TIM_Prescaler : </strong> 时钟的分频系数，对于stm32 f103 的定时器Tim1时钟为72MHz，这里我们为了提高控制精度不分频则系数取（0+1），所以寄存器CNT每1/72M s加一。</p>
-<p><strong>TIM_CounterMode： </strong>定时器的模式也是配置的重点，不同于其他场合这里我们选择中心对齐模式（此外还有很多其他模式请参考官方参考手册），在中心模式下CNT寄存器的值从0一直递增直到等于ARR的数值从而产生上溢事件，然后从ARR开始递减，一直减到0产生下溢事件。具体如图</p>
-<p><img src="assets\img\TIM1中心对齐.png" alt></p>
-<p><strong>PWM_PERIOD： </strong>设置寄存器ARR的值，即CNT累加到PWM_PERIOD便会产生上溢事件，这里需要考虑到电机控制的频率问题，如果取的太低则会导致电机发出噪声。这里我取1800 - 1，也就是说频率为72M/1800 =  40 000HZ，同时由于中心对齐的特性两次溢出才是一个周期所以实际频率为20 000 Hz，T = 0.05ms</p>
-<p><strong>TIM_CKD_DIV2：</strong>分频系数，和TIM_Prescaler 不同，TIM_CKD_DIV2指的是定时器的一些高级功能的时钟分频如死区和刹车等事件处理的时钟，影响不大。</p>
-<p>REP_RATE：重复计数值，对于中心模式有上溢事件和下溢事件，但是后面会说到我们只需要在上溢时才进行一些操作。将REP_RATE设置为1，意味着REP_RATE+1次 （上溢+下溢）事件发生后才会进入中断，减少了判断与打断次数。</p>
-<p>紧接着我们配置输出，对于GPIO我们选择复用推挽便好</p>
-<p> <code>GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;</code></p>
-<p>定时器的输出配置同样有一些需要注意的地方</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">TIM1_OCInitStructure.TIM_OCMode = TIM_OCMode_PWM1; </span><br><span class="line">TIM1_OCInitStructure.TIM_OutputState = TIM_OutputState_Enable; </span><br><span class="line">TIM1_OCInitStructure.TIM_OutputNState = TIM_OutputNState_Enable;                  </span><br><span class="line">TIM1_OCInitStructure.TIM_Pulse = 0x505; //dummy value</span><br><span class="line">TIM1_OCInitStructure.TIM_OCPolarity = TIM_OCPolarity_High; </span><br><span class="line">TIM1_OCInitStructure.TIM_OCNPolarity = TIM_OCNPolarity_High;         </span><br><span class="line">TIM1_OCInitStructure.TIM_OCIdleState = TIM_OCIdleState_Reset;</span><br><span class="line">TIM1_OCInitStructure.TIM_OCNIdleState = LOW_SIDE_POLARITY;          </span><br><span class="line"></span><br><span class="line">TIM_OC1Init(TIM1, &amp;TIM1_OCInitStructure); </span><br><span class="line">TIM_OC2Init(TIM1, &amp;TIM1_OCInitStructure);</span><br><span class="line">TIM_OC3Init(TIM1, &amp;TIM1_OCInitStructure);</span><br></pre></td></tr></table></figure>
-<p>同样对每个参数都进行介绍</p>
-<p><strong>TIM_OCMode： </strong> 有TIM_OCMode_PWM1和TIM_OCMode_PWM2两种模式可以选择，区别在于PWM1模式下当CNT寄存器小于CCR寄存器时状态为1，大于时则为0，而PWM2反之。如下图的效果</p>
-<p><img src="assets\img\PWM1VSPWM2.png" alt></p>
-<p>PWM1和2的区别在于cnt小于Pulse时PWM1为高而pwm2为低，造成PWM1模式下高电平时产生跟新事件，而PWM2下低电平时产生跟新事件，跟新事件时进入中断可以开启adc采样，根据采样要求选择高电平时即PWM1模式         </p>
-<p><strong>TIM_OutputState/TIM_OutputNState：</strong>使能CHx和CHNx输出，如果采用6个MOS驱动需要互补输出，如果直接采用集成芯片则不需要互补输出，芯片自带互补功能。</p>
-<p><strong>TIM_OCPolarity/TIM_OCNPolarity：</strong>  这两个配置和pwm1与pwm2模式共同决定最终的波形，如果极性设置为高则1==高电平，反之1==低电平</p>
-<p>如下图效果，共同决定输出波形</p>
-<p><img src alt></p>
-<p><strong>TIM_Pulse： </strong> 设置CCRx寄存器的值，但是我们后期需要不断改变这个值达到改变波形的目的，这里只是象征性的赋值</p>
-<p><strong>TIM_OCIdleState/TIM_OCNIdleState：</strong>  决定死区时CHx和CHNx的输出状态，这里推荐设置为CHx输出低，CHNx输出高，但是反过来理论上也可以。但是这两个一定要相反配置。</p>
-<p>定时器部分最后一个配置便是死区配置，相信对有刷电机熟悉的同学对死区这个概念应该不陌生了，不了解的请自行百度。总之死区的目的在于避免上下MOS同时导通造成短路的现象，这也提醒我们一定要测好波形再上电上电机也一定要使用数字电源调试，盲目上电只会炸板子！！！不要问我是怎么知道的。</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">   TIM1_BDTRInitStructure.TIM_OSSRState = TIM_OSSRState_Enable;</span><br><span class="line">TIM1_BDTRInitStructure.TIM_OSSIState = TIM_OSSIState_Enable;</span><br><span class="line">TIM1_BDTRInitStructure.TIM_LOCKLevel = TIM_LOCKLevel_1; </span><br><span class="line">TIM1_BDTRInitStructure.TIM_DeadTime = DEADTIME;</span><br><span class="line">TIM1_BDTRInitStructure.TIM_Break = TIM_Break_Disable;</span><br><span class="line">TIM1_BDTRInitStructure.TIM_BreakPolarity = TIM_BreakPolarity_High;</span><br><span class="line">TIM1_BDTRInitStructure.TIM_AutomaticOutput = TIM_AutomaticOutput_Enable;</span><br><span class="line"></span><br><span class="line">TIM_BDTRConfig(TIM1, &amp;TIM1_BDTRInitStructure);</span><br></pre></td></tr></table></figure>
-<p>这里需要注意的地方不多，具体介绍可参考数据手册。这里只介绍一个参数，其他的随便配置都可以。</p>
-<p><strong>TIM_DeadTime：</strong> 这个参数决定了死区时间，而我们后面需要对死区时间得到一个精确值。所以这里先分析得到理论上的死区时间计算公式。</p>
-<p>由于我们上面配置分频系数为TIM_CKD_DIV2，则死区控制的时钟为 72/2 = 36MHz，</p>
-<p>所以 死区时间： t = 72/2* DEADTIME/1000000000 </p>
-<p><code>#define DEADTIME  (u16)((unsigned long long)CKTIM/2 \
-​          *(unsigned long long)DEADTIME_NS/1000000000uL)</code></p>
-<p>最后一步便是配置中断优先级，对于熟悉stm32的同学来说便是轻车熟路了。这里唯一值得注意的点在于我们选择</p>
-<p>TIM_IT_Update 中断，也就是按照上面的配置只会在如图时间时产生中断，这一点对后面电流采样很重要。</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">TIM_ITConfig(TIM1, TIM_IT_Update, ENABLE);</span><br><span class="line">NVIC_InitTypeDef NVIC_InitStructure;</span><br><span class="line">NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);</span><br><span class="line">NVIC_InitStructure.NVIC_IRQChannel = TIM1_UP_IRQn;</span><br><span class="line">NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 1;</span><br><span class="line">NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;</span><br><span class="line">NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;</span><br><span class="line">NVIC_Init(&amp;NVIC_InitStructure);</span><br></pre></td></tr></table></figure>
-<p>四、 实现svpwm</p>
-<p>终于，我们把定时器部分的内容配置完成了。我们还需要写一个函数来实现svpwm波的波形。当然这在st的电机库中也实现了，下面是为删减后的版本。</p>
-<figure class="highlight plain"><figcaption><span>SVPWM_3ShuntCalcDutyCycles(Volt_Components Stat_Volt_Input)</span></figcaption><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br></pre></td><td class="code"><pre><span class="line">&#123;</span><br><span class="line">    int32_t wX,wY,wZ,wU;</span><br><span class="line">    uint16_t hTimePhA = 0,hTimePhB = 0,hTimePhC = 0;</span><br><span class="line">    uint16_t hDeltaDuty;</span><br><span class="line">	/***************计算出相电压***************/</span><br><span class="line">    wUAlpha = Stat_Volt_Input.qV_Component1 * T_SQRT3 ;</span><br><span class="line">    wUBeta = -(Stat_Volt_Input.qV_Component2 * T);</span><br><span class="line">    wX = wUBeta;</span><br><span class="line">    wY = (wUBeta + wUAlpha)/2;</span><br><span class="line">    wZ = (wUBeta - wUAlpha)/2;</span><br><span class="line">	/***************判断电压矢量所处的扇区***************/</span><br><span class="line">	if (wY&lt;0)</span><br><span class="line">    &#123;</span><br><span class="line">      if (wZ&lt;0)</span><br><span class="line">      &#123;</span><br><span class="line">        bSector = SECTOR_5;</span><br><span class="line">      &#125;</span><br><span class="line">      else if (wX&lt;=0)</span><br><span class="line">      &#123;</span><br><span class="line">        bSector = SECTOR_4;</span><br><span class="line">      &#125;</span><br><span class="line">      else // wX &gt; 0</span><br><span class="line">      &#123;</span><br><span class="line">        bSector = SECTOR_3;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    else // wY &gt; 0</span><br><span class="line">    &#123;</span><br><span class="line">     if (wZ&gt;=0)</span><br><span class="line">     &#123;</span><br><span class="line">       bSector = SECTOR_2;</span><br><span class="line">     &#125;</span><br><span class="line">     else if (wX&lt;=0)</span><br><span class="line">     &#123;  </span><br><span class="line">       bSector = SECTOR_6;</span><br><span class="line">     &#125;</span><br><span class="line">     else // wX &gt; 0</span><br><span class="line">     &#123;</span><br><span class="line">       bSector = SECTOR_1;</span><br><span class="line">     &#125;</span><br><span class="line">    &#125;</span><br><span class="line">	/***************根据不同的扇区确定电压作用的时间***************/</span><br><span class="line">   switch(bSector)</span><br><span class="line">   &#123;   </span><br><span class="line">    case SECTOR_1:</span><br><span class="line">                hTimePhA = (T/8) + ((((T + wX) - wZ)/2)/131072);</span><br><span class="line">				hTimePhB = hTimePhA + wZ/131072;</span><br><span class="line">				hTimePhC = hTimePhB - wX/131072;                                    </span><br><span class="line">          break;</span><br><span class="line">    case SECTOR_2:</span><br><span class="line">                hTimePhA = (T/8) + ((((T + wY) - wZ)/2)/131072);</span><br><span class="line">				hTimePhB = hTimePhA + wZ/131072;</span><br><span class="line">				hTimePhC = hTimePhA - wY/131072;</span><br><span class="line">          break;</span><br><span class="line">    case SECTOR_3:</span><br><span class="line">                hTimePhA = (T/8) + ((((T - wX) + wY)/2)/131072);</span><br><span class="line">    			hTimePhC = hTimePhA - wY/131072;</span><br><span class="line">    			hTimePhB = hTimePhC + wX/131072;</span><br><span class="line">         break;</span><br><span class="line">    </span><br><span class="line">    case SECTOR_4:</span><br><span class="line">                hTimePhA = (T/8) + ((((T + wX) - wZ)/2)/131072);</span><br><span class="line">                hTimePhB = hTimePhA + wZ/131072;</span><br><span class="line">                hTimePhC = hTimePhB - wX/131072;</span><br><span class="line">         break;  </span><br><span class="line">    </span><br><span class="line">    case SECTOR_5:</span><br><span class="line">                hTimePhA = (T/8) + ((((T + wY) - wZ)/2)/131072);</span><br><span class="line">    			hTimePhB = hTimePhA + wZ/131072;</span><br><span class="line">    			hTimePhC = hTimePhA - wY/131072;</span><br><span class="line">    	 break;</span><br><span class="line">                </span><br><span class="line">    case SECTOR_6:</span><br><span class="line">                hTimePhA = (T/8) + ((((T - wX) + wY)/2)/131072);</span><br><span class="line">    			hTimePhC = hTimePhA - wY/131072;</span><br><span class="line">    			hTimePhB = hTimePhC + wX/131072;</span><br><span class="line">    default:</span><br><span class="line">    	break;</span><br><span class="line">   &#125;</span><br><span class="line">   /***************改变寄存器的值***************/</span><br><span class="line">   CH1_ENABLE(1);</span><br><span class="line">   CH2_ENABLE(1);</span><br><span class="line">   CH3_ENABLE(1);</span><br><span class="line">   set_PWM_1(hTimePhA);</span><br><span class="line">   set_PWM_2(hTimePhB);</span><br><span class="line">   set_PWM_3(hTimePhC);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-<p><code>`</code></p>
-<p>这部分代码可以分为三个部分理解：</p>
-<p>第一部分：</p>
-<p>park逆变换，这部分会在另外一篇博客内详细介绍。</p>
-<p>第二部分：</p>
-<p>判断扇区，具体的理论请参考下面内容</p>
-<p><img src="assets\img\sector.png" alt></p>
-<p>第三部分：</p>
-<p>根据不同的扇区确定ABC三相的作用时间。具体同样参考下面图片中内容</p>
-<p><img src="assets\img\time.png" alt></p>
-<h3 id="小节"><a href="#小节" class="headerlink" title="小节"></a>小节</h3><p>我们针对svpwm波形的特征，深入stm32定时器内部特性实现了svpwm波形的输出。这样我们便能试着控制直接调用上面的函数控制电机了。如果有传感器得到位置信息的话，很容易便实现正弦波驱动电机了。下一次我们会暂时将这个文件放一放。先学习clarke和park变换的内容，然后再回来继续学习剩下的内容。</p>
-
-      
-
-      
-    </div>
-    <div class="article-info article-info-index">
+    
       
       
-	<div class="article-tag tagcloud">
-		<i class="icon-price-tags icon"></i>
-		<ul class="article-tag-list">
-			 
-        		<li class="article-tag-list-item">
-        			<a href="javascript:void(0)" class="js-tag article-tag-list-link color5">电机控制</a>
-        		</li>
-      		
-		</ul>
-	</div>
-
-      
-
-      
-        <p class="article-more-link">
-          <a class="article-more-a" href="/2019/03/11/电机控制（一）-stm32实现svpwm/">展开全文 >></a>
-        </p>
-      
-
-      
-      <div class="clearfix"></div>
-    </div>
-  </div>
-</article>
-
-<aside class="wrap-side-operation">
-    <div class="mod-side-operation">
-        
-        <div class="jump-container" id="js-jump-container" style="display:none;">
-            <a href="javascript:void(0)" class="mod-side-operation__jump-to-top">
-                <i class="icon-font icon-back"></i>
-            </a>
-            <div id="js-jump-plan-container" class="jump-plan-container" style="top: -11px;">
-                <i class="icon-font icon-plane jump-plane"></i>
-            </div>
+      <section class="archives-wrap">
+        <div class="archive-year-wrap">
+          <a href="/archives/2019" class="archive-year">2019</a>
         </div>
-        
-        
-    </div>
-</aside>
-
-
-
-
-  
-    <article id="post-about-me" class="article article-type-post  article-index" itemscope itemprop="blogPost">
-  <div class="article-inner">
+        <div class="archives">
     
-      <header class="article-header">
-        
-  
-    <h1 itemprop="name">
-      <a class="article-title" href="/2019/03/11/about-me/">about me</a>
-    </h1>
-  
-
-        
-        <a href="/2019/03/11/about-me/" class="archive-article-date">
-  	<time datetime="2019-03-11T08:20:13.000Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2019-03-11</time>
-</a>
-        
-      </header>
-    
-    <div class="article-entry" itemprop="articleBody">
-      
-        <p>本人就读于华中地区某985，工科男、热爱搞机（机器人）。也喜欢文学和历史，希望在自己的博客里记录下自己的生活与思考。<br><img src="assets/img/about-me-hard.jpg" alt="努力奋斗"></p>
-
-      
-
-      
-    </div>
-    <div class="article-info article-info-index">
-      
-      
-      
-
-      
-        <p class="article-more-link">
-          <a class="article-more-a" href="/2019/03/11/about-me/">展开全文 >></a>
-        </p>
-      
-
-      
-      <div class="clearfix"></div>
-    </div>
-  </div>
-</article>
-
-<aside class="wrap-side-operation">
-    <div class="mod-side-operation">
-        
-        <div class="jump-container" id="js-jump-container" style="display:none;">
-            <a href="javascript:void(0)" class="mod-side-operation__jump-to-top">
-                <i class="icon-font icon-back"></i>
-            </a>
-            <div id="js-jump-plan-container" class="jump-plan-container" style="top: -11px;">
-                <i class="icon-font icon-plane jump-plane"></i>
-            </div>
-        </div>
-        
-        
-    </div>
-</aside>
-
-
-
-
-  
-    <article id="post-常用网站合集" class="article article-type-post  article-index" itemscope itemprop="blogPost">
-  <div class="article-inner">
-    
-      <header class="article-header">
-        
-  
-    <h1 itemprop="name">
-      <a class="article-title" href="/2019/03/11/常用网站合集/">常用网站合集</a>
-    </h1>
-  
-
-        
-        <a href="/2019/03/11/常用网站合集/" class="archive-article-date">
-  	<time datetime="2019-03-11T07:51:26.000Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2019-03-11</time>
-</a>
-        
-      </header>
-    
-    <div class="article-entry" itemprop="articleBody">
-      
-        <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>因为在平时的工作和生活中常会找到一些好用的网站和和一些博客,但是我们下一次再想找时便找<br>不到了又会浪费很多时间所以我特意用这个博客来记录自己使用的一些网站和博客便于查找和使用</p>
-<h2 id="Markdown语法"><a href="#Markdown语法" class="headerlink" title="Markdown语法"></a>Markdown语法</h2><p><a href="https://www.jianshu.com/p/191d1e21f7ed" target="_blank" rel="noopener">简书</a></p>
-<h2 id="在线流程图绘制网站"><a href="#在线流程图绘制网站" class="headerlink" title="在线流程图绘制网站"></a>在线流程图绘制网站</h2><p><a href="https://www.processon.com/" target="_blank" rel="noopener">流程图</a></p>
-<h2 id="梯子合辑"><a href="#梯子合辑" class="headerlink" title="梯子合辑"></a>梯子合辑</h2><p><a href="https://www.bennythink.com/all-platform-scientific-internet-all-in-one.html" target="_blank" rel="noopener">梯子</a></p>
-<h2 id="RM汇报主页"><a href="#RM汇报主页" class="headerlink" title="RM汇报主页"></a>RM汇报主页</h2><p><a href>RM</a></p>
-<h2 id="免费图片下载"><a href="#免费图片下载" class="headerlink" title="免费图片下载"></a>免费图片下载</h2><p><a href="https://pixabay.com/zh/" target="_blank" rel="noopener">PIXABAY</a></p>
-<h2 id="软件安装管家"><a href="#软件安装管家" class="headerlink" title="软件安装管家"></a>软件安装管家</h2><p><a href="https://mp.weixin.qq.com/s/zeq1sTmaPsKt7Bsok0Ldrg" target="_blank" rel="noopener">软件安装管家</a></p>
-<h2 id="ubuntu解决时间错误"><a href="#ubuntu解决时间错误" class="headerlink" title="ubuntu解决时间错误"></a>ubuntu解决时间错误</h2><p><a href="https://zhuanlan.zhihu.com/p/26032793" target="_blank" rel="noopener">时间错误</a></p>
-<h2 id="mooc下载"><a href="#mooc下载" class="headerlink" title="mooc下载"></a>mooc下载</h2><p><a href="http://www.feemic.cn/mooc" target="_blank" rel="noopener">mooc下载</a></p>
-
-      
-
-      
-    </div>
-    <div class="article-info article-info-index">
-      
-      
-	<div class="article-tag tagcloud">
-		<i class="icon-price-tags icon"></i>
-		<ul class="article-tag-list">
-			 
-        		<li class="article-tag-list-item">
-        			<a href="javascript:void(0)" class="js-tag article-tag-list-link color4">常用网站链接合集</a>
-        		</li>
-      		
-		</ul>
-	</div>
-
-      
-
-      
-        <p class="article-more-link">
-          <a class="article-more-a" href="/2019/03/11/常用网站合集/">展开全文 >></a>
-        </p>
-      
-
-      
-      <div class="clearfix"></div>
-    </div>
-  </div>
-</article>
-
-<aside class="wrap-side-operation">
-    <div class="mod-side-operation">
-        
-        <div class="jump-container" id="js-jump-container" style="display:none;">
-            <a href="javascript:void(0)" class="mod-side-operation__jump-to-top">
-                <i class="icon-font icon-back"></i>
-            </a>
-            <div id="js-jump-plan-container" class="jump-plan-container" style="top: -11px;">
-                <i class="icon-font icon-plane jump-plane"></i>
-            </div>
-        </div>
-        
-        
-    </div>
-</aside>
-
-
-
-
-  
-    <article id="post-hello-world" class="article article-type-post  article-index" itemscope itemprop="blogPost">
-  <div class="article-inner">
-    
-      <header class="article-header">
-        
-  
-    <h1 itemprop="name">
-      <a class="article-title" href="/2019/03/11/hello-world/">Hello World</a>
-    </h1>
-  
-
-        
-        <a href="/2019/03/11/hello-world/" class="archive-article-date">
+    <article class="archive-article archive-type-post">
+  <div class="archive-article-inner">
+    <header class="archive-article-header">
+      	<div class="article-meta">
+	      	<a href="/2019/03/11/hello-world/" class="archive-article-date">
   	<time datetime="2019-03-11T04:24:28.115Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2019-03-11</time>
 </a>
-        
-      </header>
-    
-    <div class="article-entry" itemprop="articleBody">
-      
-        <p>Welcome to <a href="https://hexo.io/" target="_blank" rel="noopener">Hexo</a>! This is your very first post. Check <a href="https://hexo.io/docs/" target="_blank" rel="noopener">documentation</a> for more info. If you get any problems when using Hexo, you can find the answer in <a href="https://hexo.io/docs/troubleshooting.html" target="_blank" rel="noopener">troubleshooting</a> or you can ask me on <a href="https://github.com/hexojs/hexo/issues" target="_blank" rel="noopener">GitHub</a>.</p>
-<h2 id="Quick-Start"><a href="#Quick-Start" class="headerlink" title="Quick Start"></a>Quick Start</h2><h3 id="Create-a-new-post"><a href="#Create-a-new-post" class="headerlink" title="Create a new post"></a>Create a new post</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ hexo new <span class="string">"My New Post"</span></span><br></pre></td></tr></table></figure>
-<p>More info: <a href="https://hexo.io/docs/writing.html" target="_blank" rel="noopener">Writing</a></p>
-<h3 id="Run-server"><a href="#Run-server" class="headerlink" title="Run server"></a>Run server</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ hexo server</span><br></pre></td></tr></table></figure>
-<p>More info: <a href="https://hexo.io/docs/server.html" target="_blank" rel="noopener">Server</a></p>
-<h3 id="Generate-static-files"><a href="#Generate-static-files" class="headerlink" title="Generate static files"></a>Generate static files</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ hexo generate</span><br></pre></td></tr></table></figure>
-<p>More info: <a href="https://hexo.io/docs/generating.html" target="_blank" rel="noopener">Generating</a></p>
-<h3 id="Deploy-to-remote-sites"><a href="#Deploy-to-remote-sites" class="headerlink" title="Deploy to remote sites"></a>Deploy to remote sites</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ hexo deploy</span><br></pre></td></tr></table></figure>
-<p>More info: <a href="https://hexo.io/docs/deployment.html" target="_blank" rel="noopener">Deployment</a></p>
+        </div>
+    	 
+  
+    <h1 itemprop="name">
+      <a class="archive-article-title" href="/2019/03/11/hello-world/">Hello World</a>
+    </h1>
+  
 
-      
+        <div class="article-info info-on-right">
+          
+          
 
-      
-    </div>
-    <div class="article-info article-info-index">
-      
-      
-      
-
-      
-        <p class="article-more-link">
-          <a class="article-more-a" href="/2019/03/11/hello-world/">展开全文 >></a>
-        </p>
-      
-
-      
-      <div class="clearfix"></div>
-    </div>
+        </div>
+        <div class="clearfix"></div>
+    </header>
   </div>
 </article>
-
-<aside class="wrap-side-operation">
-    <div class="mod-side-operation">
-        
-        <div class="jump-container" id="js-jump-container" style="display:none;">
-            <a href="javascript:void(0)" class="mod-side-operation__jump-to-top">
-                <i class="icon-font icon-back"></i>
-            </a>
-            <div id="js-jump-plan-container" class="jump-plan-container" style="top: -11px;">
-                <i class="icon-font icon-plane jump-plane"></i>
-            </div>
-        </div>
-        
-        
-    </div>
-</aside>
-
-
-
-
   
+  
+    </div></section>
+  
+
+    
+    <nav id="page-nav">
+      <a class="extend prev" rel="prev" href="/archives/">&laquo; Prev</a><a class="page-number" href="/archives/">1</a><span class="page-number current">2</span>
+    </nav>
   
 
 
@@ -521,9 +222,9 @@
     <script>
 	var yiliaConfig = {
 		mathjax: true,
-		isHome: true,
+		isHome: false,
 		isPost: false,
-		isArchive: false,
+		isArchive: true,
 		isTag: false,
 		isCategory: false,
 		open_in_new: false,

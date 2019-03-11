@@ -6,15 +6,26 @@
   <meta name="renderer" content="webkit">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <link rel="dns-prefetch" href="http://linyicheng.club">
-  <title>木独的博客</title>
+  <title>电机控制（一） stm32实现svpwm | 木独的博客</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-  <meta property="og:type" content="website">
-<meta property="og:title" content="木独的博客">
-<meta property="og:url" content="http://linyicheng.club/index.html">
+  <meta name="description" content="一、简介FOC电机控制算法相比于方波控制能提高电机的运转性能，但是目前的困境在于大量的博客论坛都是理论上的泛泛而谈，只是谈到一些基本的FOC的原理没有落地到具体实现。另一方面，st公司开源了一套FOC的代码库，奈何为了推行F3系列芯片大部分都是基于stm32f3实现的，同时包含了大量的宏定义和GUI内容，把各种模式和配置都杂糅在一起，在我看来是不利于大家理解的并且从2.0的库到5.0的库封装性越好">
+<meta name="keywords" content="电机控制">
+<meta property="og:type" content="article">
+<meta property="og:title" content="电机控制（一） stm32实现svpwm">
+<meta property="og:url" content="http://linyicheng.club/2019/03/11/电机控制（一）-stm32实现svpwm/index.html">
 <meta property="og:site_name" content="木独的博客">
+<meta property="og:description" content="一、简介FOC电机控制算法相比于方波控制能提高电机的运转性能，但是目前的困境在于大量的博客论坛都是理论上的泛泛而谈，只是谈到一些基本的FOC的原理没有落地到具体实现。另一方面，st公司开源了一套FOC的代码库，奈何为了推行F3系列芯片大部分都是基于stm32f3实现的，同时包含了大量的宏定义和GUI内容，把各种模式和配置都杂糅在一起，在我看来是不利于大家理解的并且从2.0的库到5.0的库封装性越好">
 <meta property="og:locale" content="default">
+<meta property="og:image" content="http://linyicheng.club/2019/03/11/电机控制（一）-stm32实现svpwm/assets/img/FOC-svpwm.jpg">
+<meta property="og:image" content="http://linyicheng.club/2019/03/11/电机控制（一）-stm32实现svpwm/assets/img/TIM1中心对齐.png">
+<meta property="og:image" content="http://linyicheng.club/2019/03/11/电机控制（一）-stm32实现svpwm/assets/img/PWM1VSPWM2.png">
+<meta property="og:image" content="http://linyicheng.club/2019/03/11/电机控制（一）-stm32实现svpwm/assets/img/sector.png">
+<meta property="og:image" content="http://linyicheng.club/2019/03/11/电机控制（一）-stm32实现svpwm/assets/img/time.png">
+<meta property="og:updated_time" content="2019-03-11T15:38:13.394Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="木独的博客">
+<meta name="twitter:title" content="电机控制（一） stm32实现svpwm">
+<meta name="twitter:description" content="一、简介FOC电机控制算法相比于方波控制能提高电机的运转性能，但是目前的困境在于大量的博客论坛都是理论上的泛泛而谈，只是谈到一些基本的FOC的原理没有落地到具体实现。另一方面，st公司开源了一套FOC的代码库，奈何为了推行F3系列芯片大部分都是基于stm32f3实现的，同时包含了大量的宏定义和GUI内容，把各种模式和配置都杂糅在一起，在我看来是不利于大家理解的并且从2.0的库到5.0的库封装性越好">
+<meta name="twitter:image" content="http://linyicheng.club/2019/03/11/电机控制（一）-stm32实现svpwm/assets/img/FOC-svpwm.jpg">
   
     <link rel="alternative" href="/atom.xml" title="木独的博客" type="application/atom+xml">
   
@@ -154,16 +165,14 @@
             <canvas data-colors="#eaeaea" data-sectionHeight="100" data-contentId="js-content" id="myCanvas1" class="anm-canvas"></canvas>
           </div>
           <div id="js-content" class="content-ll">
-            
-  
-    <article id="post-电机控制（一）-stm32实现svpwm" class="article article-type-post  article-index" itemscope itemprop="blogPost">
+            <article id="post-电机控制（一）-stm32实现svpwm" class="article article-type-post " itemscope itemprop="blogPost">
   <div class="article-inner">
     
       <header class="article-header">
         
   
-    <h1 itemprop="name">
-      <a class="article-title" href="/2019/03/11/电机控制（一）-stm32实现svpwm/">电机控制（一） stm32实现svpwm</a>
+    <h1 class="article-title" itemprop="name">
+      电机控制（一） stm32实现svpwm
     </h1>
   
 
@@ -234,6 +243,27 @@
       
 
       
+        <div class="page-reward">
+          <a href="javascript:;" class="page-reward-btn tooltip-top">
+            <div class="tooltip tooltip-east">
+            <span class="tooltip-item">
+              赏
+            </span>
+            <span class="tooltip-content">
+              <span class="tooltip-text">
+                <span class="tooltip-inner">
+                  <p class="reward-p"><i class="icon icon-quo-left"></i>谢谢你请我吃糖果<i class="icon icon-quo-right"></i></p>
+                  <div class="reward-box">
+                    
+                    
+                  </div>
+                </span>
+              </span>
+            </span>
+          </div>
+          </a>
+        </div>
+      
     </div>
     <div class="article-info article-info-index">
       
@@ -252,16 +282,75 @@
       
 
       
-        <p class="article-more-link">
-          <a class="article-more-a" href="/2019/03/11/电机控制（一）-stm32实现svpwm/">展开全文 >></a>
-        </p>
-      
 
+      
+        
+<div class="share-btn share-icons tooltip-left">
+  <div class="tooltip tooltip-east">
+    <span class="tooltip-item">
+      <a href="javascript:;" class="share-sns share-outer">
+        <i class="icon icon-share"></i>
+      </a>
+    </span>
+    <span class="tooltip-content">
+      <div class="share-wrap">
+        <div class="share-icons">
+          <a class="weibo share-sns" href="javascript:;" data-type="weibo">
+            <i class="icon icon-weibo"></i>
+          </a>
+          <a class="weixin share-sns wxFab" href="javascript:;" data-type="weixin">
+            <i class="icon icon-weixin"></i>
+          </a>
+          <a class="qq share-sns" href="javascript:;" data-type="qq">
+            <i class="icon icon-qq"></i>
+          </a>
+          <a class="douban share-sns" href="javascript:;" data-type="douban">
+            <i class="icon icon-douban"></i>
+          </a>
+          <a class="qzone share-sns" href="javascript:;" data-type="qzone">
+            <i class="icon icon-qzone"></i>
+          </a>
+          <a class="facebook share-sns" href="javascript:;" data-type="facebook">
+            <i class="icon icon-facebook"></i>
+          </a>
+          <a class="twitter share-sns" href="javascript:;" data-type="twitter">
+            <i class="icon icon-twitter"></i>
+          </a>
+          <a class="google share-sns" href="javascript:;" data-type="google">
+            <i class="icon icon-google"></i>
+          </a>
+        </div>
+      </div>
+    </span>
+  </div>
+</div>
+
+<div class="page-modal wx-share js-wx-box">
+    <a class="close js-modal-close" href="javascript:;"><i class="icon icon-close"></i></a>
+    <p>扫一扫，分享到微信</p>
+    <div class="wx-qrcode">
+      <img src="//pan.baidu.com/share/qrcode?url=http://linyicheng.club/2019/03/11/电机控制（一）-stm32实现svpwm/" alt="微信分享二维码">
+    </div>
+</div>
+
+<div class="mask js-mask"></div>
       
       <div class="clearfix"></div>
     </div>
   </div>
 </article>
+
+  
+<nav id="article-nav">
+  
+  
+    <a href="/2019/03/11/about-me/" id="article-nav-older" class="article-nav-link-wrap">
+      <div class="article-nav-title">about me</div>
+      <i class="icon-circle-right"></i>
+    </a>
+  
+</nav>
+
 
 <aside class="wrap-side-operation">
     <div class="mod-side-operation">
@@ -281,224 +370,14 @@
 
 
 
-
   
-    <article id="post-about-me" class="article article-type-post  article-index" itemscope itemprop="blogPost">
-  <div class="article-inner">
-    
-      <header class="article-header">
-        
   
-    <h1 itemprop="name">
-      <a class="article-title" href="/2019/03/11/about-me/">about me</a>
-    </h1>
   
 
-        
-        <a href="/2019/03/11/about-me/" class="archive-article-date">
-  	<time datetime="2019-03-11T08:20:13.000Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2019-03-11</time>
-</a>
-        
-      </header>
-    
-    <div class="article-entry" itemprop="articleBody">
-      
-        <p>本人就读于华中地区某985，工科男、热爱搞机（机器人）。也喜欢文学和历史，希望在自己的博客里记录下自己的生活与思考。<br><img src="assets/img/about-me-hard.jpg" alt="努力奋斗"></p>
-
-      
-
-      
-    </div>
-    <div class="article-info article-info-index">
-      
-      
-      
-
-      
-        <p class="article-more-link">
-          <a class="article-more-a" href="/2019/03/11/about-me/">展开全文 >></a>
-        </p>
-      
-
-      
-      <div class="clearfix"></div>
-    </div>
-  </div>
-</article>
-
-<aside class="wrap-side-operation">
-    <div class="mod-side-operation">
-        
-        <div class="jump-container" id="js-jump-container" style="display:none;">
-            <a href="javascript:void(0)" class="mod-side-operation__jump-to-top">
-                <i class="icon-font icon-back"></i>
-            </a>
-            <div id="js-jump-plan-container" class="jump-plan-container" style="top: -11px;">
-                <i class="icon-font icon-plane jump-plane"></i>
-            </div>
-        </div>
-        
-        
-    </div>
-</aside>
-
-
-
-
-  
-    <article id="post-常用网站合集" class="article article-type-post  article-index" itemscope itemprop="blogPost">
-  <div class="article-inner">
-    
-      <header class="article-header">
-        
-  
-    <h1 itemprop="name">
-      <a class="article-title" href="/2019/03/11/常用网站合集/">常用网站合集</a>
-    </h1>
   
 
-        
-        <a href="/2019/03/11/常用网站合集/" class="archive-article-date">
-  	<time datetime="2019-03-11T07:51:26.000Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2019-03-11</time>
-</a>
-        
-      </header>
-    
-    <div class="article-entry" itemprop="articleBody">
-      
-        <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>因为在平时的工作和生活中常会找到一些好用的网站和和一些博客,但是我们下一次再想找时便找<br>不到了又会浪费很多时间所以我特意用这个博客来记录自己使用的一些网站和博客便于查找和使用</p>
-<h2 id="Markdown语法"><a href="#Markdown语法" class="headerlink" title="Markdown语法"></a>Markdown语法</h2><p><a href="https://www.jianshu.com/p/191d1e21f7ed" target="_blank" rel="noopener">简书</a></p>
-<h2 id="在线流程图绘制网站"><a href="#在线流程图绘制网站" class="headerlink" title="在线流程图绘制网站"></a>在线流程图绘制网站</h2><p><a href="https://www.processon.com/" target="_blank" rel="noopener">流程图</a></p>
-<h2 id="梯子合辑"><a href="#梯子合辑" class="headerlink" title="梯子合辑"></a>梯子合辑</h2><p><a href="https://www.bennythink.com/all-platform-scientific-internet-all-in-one.html" target="_blank" rel="noopener">梯子</a></p>
-<h2 id="RM汇报主页"><a href="#RM汇报主页" class="headerlink" title="RM汇报主页"></a>RM汇报主页</h2><p><a href>RM</a></p>
-<h2 id="免费图片下载"><a href="#免费图片下载" class="headerlink" title="免费图片下载"></a>免费图片下载</h2><p><a href="https://pixabay.com/zh/" target="_blank" rel="noopener">PIXABAY</a></p>
-<h2 id="软件安装管家"><a href="#软件安装管家" class="headerlink" title="软件安装管家"></a>软件安装管家</h2><p><a href="https://mp.weixin.qq.com/s/zeq1sTmaPsKt7Bsok0Ldrg" target="_blank" rel="noopener">软件安装管家</a></p>
-<h2 id="ubuntu解决时间错误"><a href="#ubuntu解决时间错误" class="headerlink" title="ubuntu解决时间错误"></a>ubuntu解决时间错误</h2><p><a href="https://zhuanlan.zhihu.com/p/26032793" target="_blank" rel="noopener">时间错误</a></p>
-<h2 id="mooc下载"><a href="#mooc下载" class="headerlink" title="mooc下载"></a>mooc下载</h2><p><a href="http://www.feemic.cn/mooc" target="_blank" rel="noopener">mooc下载</a></p>
-
-      
-
-      
-    </div>
-    <div class="article-info article-info-index">
-      
-      
-	<div class="article-tag tagcloud">
-		<i class="icon-price-tags icon"></i>
-		<ul class="article-tag-list">
-			 
-        		<li class="article-tag-list-item">
-        			<a href="javascript:void(0)" class="js-tag article-tag-list-link color4">常用网站链接合集</a>
-        		</li>
-      		
-		</ul>
-	</div>
-
-      
-
-      
-        <p class="article-more-link">
-          <a class="article-more-a" href="/2019/03/11/常用网站合集/">展开全文 >></a>
-        </p>
-      
-
-      
-      <div class="clearfix"></div>
-    </div>
-  </div>
-</article>
-
-<aside class="wrap-side-operation">
-    <div class="mod-side-operation">
-        
-        <div class="jump-container" id="js-jump-container" style="display:none;">
-            <a href="javascript:void(0)" class="mod-side-operation__jump-to-top">
-                <i class="icon-font icon-back"></i>
-            </a>
-            <div id="js-jump-plan-container" class="jump-plan-container" style="top: -11px;">
-                <i class="icon-font icon-plane jump-plane"></i>
-            </div>
-        </div>
-        
-        
-    </div>
-</aside>
-
-
-
-
-  
-    <article id="post-hello-world" class="article article-type-post  article-index" itemscope itemprop="blogPost">
-  <div class="article-inner">
-    
-      <header class="article-header">
-        
-  
-    <h1 itemprop="name">
-      <a class="article-title" href="/2019/03/11/hello-world/">Hello World</a>
-    </h1>
   
 
-        
-        <a href="/2019/03/11/hello-world/" class="archive-article-date">
-  	<time datetime="2019-03-11T04:24:28.115Z" itemprop="datePublished"><i class="icon-calendar icon"></i>2019-03-11</time>
-</a>
-        
-      </header>
-    
-    <div class="article-entry" itemprop="articleBody">
-      
-        <p>Welcome to <a href="https://hexo.io/" target="_blank" rel="noopener">Hexo</a>! This is your very first post. Check <a href="https://hexo.io/docs/" target="_blank" rel="noopener">documentation</a> for more info. If you get any problems when using Hexo, you can find the answer in <a href="https://hexo.io/docs/troubleshooting.html" target="_blank" rel="noopener">troubleshooting</a> or you can ask me on <a href="https://github.com/hexojs/hexo/issues" target="_blank" rel="noopener">GitHub</a>.</p>
-<h2 id="Quick-Start"><a href="#Quick-Start" class="headerlink" title="Quick Start"></a>Quick Start</h2><h3 id="Create-a-new-post"><a href="#Create-a-new-post" class="headerlink" title="Create a new post"></a>Create a new post</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ hexo new <span class="string">"My New Post"</span></span><br></pre></td></tr></table></figure>
-<p>More info: <a href="https://hexo.io/docs/writing.html" target="_blank" rel="noopener">Writing</a></p>
-<h3 id="Run-server"><a href="#Run-server" class="headerlink" title="Run server"></a>Run server</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ hexo server</span><br></pre></td></tr></table></figure>
-<p>More info: <a href="https://hexo.io/docs/server.html" target="_blank" rel="noopener">Server</a></p>
-<h3 id="Generate-static-files"><a href="#Generate-static-files" class="headerlink" title="Generate static files"></a>Generate static files</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ hexo generate</span><br></pre></td></tr></table></figure>
-<p>More info: <a href="https://hexo.io/docs/generating.html" target="_blank" rel="noopener">Generating</a></p>
-<h3 id="Deploy-to-remote-sites"><a href="#Deploy-to-remote-sites" class="headerlink" title="Deploy to remote sites"></a>Deploy to remote sites</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ hexo deploy</span><br></pre></td></tr></table></figure>
-<p>More info: <a href="https://hexo.io/docs/deployment.html" target="_blank" rel="noopener">Deployment</a></p>
-
-      
-
-      
-    </div>
-    <div class="article-info article-info-index">
-      
-      
-      
-
-      
-        <p class="article-more-link">
-          <a class="article-more-a" href="/2019/03/11/hello-world/">展开全文 >></a>
-        </p>
-      
-
-      
-      <div class="clearfix"></div>
-    </div>
-  </div>
-</article>
-
-<aside class="wrap-side-operation">
-    <div class="mod-side-operation">
-        
-        <div class="jump-container" id="js-jump-container" style="display:none;">
-            <a href="javascript:void(0)" class="mod-side-operation__jump-to-top">
-                <i class="icon-font icon-back"></i>
-            </a>
-            <div id="js-jump-plan-container" class="jump-plan-container" style="top: -11px;">
-                <i class="icon-font icon-plane jump-plane"></i>
-            </div>
-        </div>
-        
-        
-    </div>
-</aside>
-
-
-
-
-  
   
 
 
@@ -521,8 +400,8 @@
     <script>
 	var yiliaConfig = {
 		mathjax: true,
-		isHome: true,
-		isPost: false,
+		isHome: false,
+		isPost: true,
 		isArchive: false,
 		isTag: false,
 		isCategory: false,
